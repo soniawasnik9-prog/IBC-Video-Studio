@@ -1,3 +1,4 @@
+
 name: Render IBC Intro Video
 
 on:
@@ -10,22 +11,44 @@ jobs:
   render:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install Blender, FFmpeg, and fonts
+      - name: Install Blender, FFmpeg, fonts, and graphics libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg fonts-dejavu-core
+          sudo apt-get install -y \
+            blender \
+            ffmpeg \
+            fonts-dejavu-core \
+            libegl1 \
+            libgl1 \
+            libgles2 \
+            libglib2.0-0 \
+            libsm6 \
+            libxrender1 \
+            libxext6
 
       - name: Install English voice generation tool
-        run: python -m pip install --upgrade pip edge-tts
+        run: |
+          python -m pip install --upgrade pip edge-tts
+
+      - name: Prepare output directory
+        run: mkdir -p output
 
       - name: Render 3D animation with Blender
         run: |
-          mkdir -p output
-          blender --background --python scripts/ibc_intro.py -- --output output/ibc_intro_silent.mp4
+          blender --background \
+            --python scripts/ibc_intro.py \
+            -- --output output/ibc_intro_silent.mp4
+
+          if [ ! -s output/ibc_intro_silent.mp4 ]; then
+            echo "ERROR: Blender did not create the expected video."
+            find output -maxdepth 2 -type f -ls
+            exit 1
+          fi
 
       - name: Generate English voice-over
         run: |
@@ -34,16 +57,32 @@ jobs:
             --file scripts/narration.txt \
             --write-media output/ibc_voice.mp3
 
+          test -s output/ibc_voice.mp3
+
       - name: Add captions and mix voice-over
         run: |
+          test -s output/ibc_intro_silent.mp4
+          test -s output/ibc_voice.mp3
+          test -s scripts/captions.srt
+
           ffmpeg -y \
             -i output/ibc_intro_silent.mp4 \
             -i output/ibc_voice.mp3 \
             -vf "subtitles=scripts/captions.srt:fontsdir=/usr/share/fonts/truetype/dejavu:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101828,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=90'" \
-            -map 0:v:0 -map 1:a:0 \
-            -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p \
-            -r 24 -c:a aac -b:a 160k -shortest \
-            -movflags +faststart output/ibc_intro_final.mp4
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -crf 22 \
+            -pix_fmt yuv420p \
+            -r 24 \
+            -c:a aac \
+            -b:a 160k \
+            -shortest \
+            -movflags +faststart \
+            output/ibc_intro_final.mp4
+
+          test -s output/ibc_intro_final.mp4
 
       - name: Upload final video and preview assets
         uses: actions/upload-artifact@v4
