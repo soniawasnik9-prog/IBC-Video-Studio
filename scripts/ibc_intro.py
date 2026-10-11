@@ -106,7 +106,7 @@ for loc, power, size in [((-5, 5, 10), 1100, 8), ((5, -2, 8), 700, 7)]:
     light.data.energy = power
     light.data.shape = "DISK"
     light.data.size = size
-    direction = (0, 0, 0) - light.location
+    direction = - light.location
     light.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
 # Procedural globe at center-left; visible behind animated typography.
