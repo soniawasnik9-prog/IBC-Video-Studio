@@ -1,8 +1,17 @@
-
-name: Render IBC Intro Video
+name: Render IBC Presenter Quality Test
 
 on:
   workflow_dispatch:
+    inputs:
+      format:
+        description: "Video format"
+        required: true
+        type: choice
+        options:
+          - both
+          - landscape
+          - vertical
+        default: both
 
 permissions:
   contents: read
@@ -10,87 +19,58 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install Blender, FFmpeg, fonts, and graphics libraries
+      - name: Install Blender and FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            blender \
-            ffmpeg \
-            fonts-dejavu-core \
-            libegl1 \
-            libgl1 \
-            libgles2 \
-            libglib2.0-0 \
-            libsm6 \
-            libxrender1 \
-            libxext6
+          sudo apt-get install -y blender ffmpeg fonts-dejavu-core libegl1 libgl1 libgles2 libglib2.0-0 libsm6 libxrender1 libxext6
 
-      - name: Install English voice generation tool
-        run: |
-          python -m pip install --upgrade pip edge-tts
+      - name: Install voice tool
+        run: python -m pip install --upgrade pip edge-tts
 
-      - name: Prepare output directory
+      - name: Prepare output
         run: mkdir -p output
 
-      - name: Render 3D animation with Blender
+      - name: Generate Indian English narration and matching subtitles
         run: |
-          blender --background \
-            --python scripts/ibc_intro.py \
-            -- --output output/ibc_intro_silent.mp4
+          edge-tts --voice en-IN-NeerjaNeural --file data/narration.txt --write-media output/ibc_voice.mp3 --write-subtitles output/ibc_voice.srt
+          test -s output/ibc_voice.mp3
+          test -s output/ibc_voice.srt
 
-          if [ ! -s output/ibc_intro_silent.mp4 ]; then
-            echo "ERROR: Blender did not create the expected video."
-            find output -maxdepth 2 -type f -ls
-            exit 1
+      - name: Render landscape preview
+        if: ${{ inputs.format == 'both' || inputs.format == 'landscape' }}
+        run: |
+          blender --background --python scripts/ibc_presenter_test.py -- --output output/ibc_test_landscape_silent.mp4 --format landscape
+          test -s output/ibc_test_landscape_silent.mp4
+
+      - name: Render vertical preview
+        if: ${{ inputs.format == 'both' || inputs.format == 'vertical' }}
+        run: |
+          blender --background --python scripts/ibc_presenter_test.py -- --output output/ibc_test_vertical_silent.mp4 --format vertical
+          test -s output/ibc_test_vertical_silent.mp4
+
+      - name: Add timed captions and voice-over
+        run: |
+          if [ -s output/ibc_test_landscape_silent.mp4 ]; then
+            ffmpeg -y -i output/ibc_test_landscape_silent.mp4 -i output/ibc_voice.mp3 \
+              -vf "subtitles=output/ibc_voice.srt:fontsdir=/usr/share/fonts/truetype/dejavu:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101828,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=34'" \
+              -map 0:v:0 -map 1:a:0 -c:v libx264 -preset ultrafast -crf 24 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart output/ibc_test_landscape.mp4
           fi
-
-      - name: Generate English voice-over
-        run: |
-          edge-tts \
-            --voice en-US-AriaNeural \
-            --file scripts/narration.txt \
-            --write-media output/ibc_voice.mp3
-
+          if [ -s output/ibc_test_vertical_silent.mp4 ]; then
+            ffmpeg -y -i output/ibc_test_vertical_silent.mp4 -i output/ibc_voice.mp3 \
+              -vf "subtitles=output/ibc_voice.srt:fontsdir=/usr/share/fonts/truetype/dejavu:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101828,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=72'" \
+              -map 0:v:0 -map 1:a:0 -c:v libx264 -preset ultrafast -crf 24 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart output/ibc_test_vertical.mp4
+          fi
           test -s output/ibc_voice.mp3
 
-      - name: Add captions and mix voice-over
-        run: |
-          test -s output/ibc_intro_silent.mp4
-          test -s output/ibc_voice.mp3
-          test -s scripts/captions.srt
-
-          ffmpeg -y \
-            -i output/ibc_intro_silent.mp4 \
-            -i output/ibc_voice.mp3 \
-            -vf "subtitles=scripts/captions.srt:fontsdir=/usr/share/fonts/truetype/dejavu:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101828,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=90'" \
-            -map 0:v:0 \
-            -map 1:a:0 \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 22 \
-            -pix_fmt yuv420p \
-            -r 24 \
-            -c:a aac \
-            -b:a 160k \
-            -shortest \
-            -movflags +faststart \
-            output/ibc_intro_final.mp4
-
-          test -s output/ibc_intro_final.mp4
-
-      - name: Upload final video and preview assets
+      - name: Upload quality-test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ibc-intro-video
-          path: |
-            output/ibc_intro_final.mp4
-            output/ibc_intro_silent.mp4
-            output/ibc_voice.mp3
+          name: ibc-presenter-quality-test
+          path: output/
           if-no-files-found: error
           retention-days: 7
