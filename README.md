@@ -1,37 +1,28 @@
-# IBC Video Studio
+# IBC Video Studio — presenter quality-test redesign
 
-A separate, code-first Blender project for generating IBC's 30-second global import-export introduction. It does **not** modify or depend on the existing EXIM AI repository.
+## Important limitation
+This is a fast 15-second *style and pipeline test*. It creates a stylized presenter from Blender primitives, a procedural port environment, and both landscape and vertical compositions. It is **not yet a cinematic rigged character** and does not include true facial lip-sync. Approve the composition/pipeline before adding a properly licensed rigged character model.
 
-## What it produces
+## Files to add/replace in your existing repository
+- Replace `.github/workflows/render-video.yml` with the version in this package.
+- Add `scripts/ibc_presenter_test.py`.
+- Add `data/narration.txt`.
 
-- Vertical 9:16 3D animation (720 × 1280 master render for a practical cloud-runner starting point)
-- English voice-over generated during GitHub Actions using `edge-tts`
-- English captions burned into the final MP4
-- Final video saved as a downloadable GitHub Actions artifact
+The old `scripts/ibc_intro.py` and existing source files are not deleted; this new workflow uses the new test script only.
 
-The first version uses procedural Blender objects and text, so no paid 3D assets are needed.
+## Run
+1. Commit these files to the existing repository.
+2. Open **Actions → Render IBC Presenter Quality Test → Run workflow**.
+3. Choose `both` for landscape and vertical previews.
+4. Download the `ibc-presenter-quality-test` artifact from the completed run.
 
-## Create the repository
+## Why it should be faster
+- 15 seconds at 12 fps = 180 frames per format, versus the previous 720-frame 30-second render.
+- Reduced Eevee samples and `ultrafast` FFmpeg encoding.
+- It creates a short validation clip before attempting long videos.
 
-1. On GitHub, create a **new, separate** repository named `IBC-Video-Studio`.
-2. Upload these files to the new repository, preserving their folder paths, or push them with Git.
-3. Open **Actions** and enable workflows if GitHub asks.
-4. Select **Render IBC Intro Video** → **Run workflow**.
-5. When it finishes, open the run and download the `ibc-intro-video` artifact.
+## Audio/captions
+The workflow uses Edge TTS voice `en-IN-NeerjaNeural` and requests subtitles from the same narration generation command, so caption timings are based on generated speech. Voice availability depends on the Edge TTS service and can change.
 
-The workflow is manual-only by default to avoid spending runner minutes on every commit.
-
-## Customise before publishing
-
-- Replace `YOUR_WHATSAPP_NUMBER` in `scripts/narration.txt` and `scripts/captions.srt` with your public business WhatsApp number.
-- Review all service claims and the narration before publishing.
-- Change the scene text and timings in `scripts/ibc_intro.py`.
-- Edit `scripts/narration.txt` and `scripts/captions.srt` together so the spoken audio and subtitles stay aligned.
-- For a logo, add a transparent PNG under `assets/` and extend the Blender script to load it.
-
-## Important notes
-
-- This workflow depends on network access to install Blender/FFmpeg and fetch the English voice from Microsoft Edge TTS. If that service is unavailable, the run may fail at the narration step.
-- GitHub-hosted runners are CPU-based here; the first render can take a while. This starter intentionally uses Eevee and a 720 × 1280 master. Upscaling the final video does not add detail; increase Blender resolution only after testing render time.
-- The Blender render is an animated brand explainer, not a photorealistic simulation of real shipping operations.
-- No WhatsApp number is included yet. Replace the placeholder before publishing.
+## Before production
+Replace the primitive placeholder presenter with a licensed rigged character and add real gestures/facial lip-sync. Confirm the voice, subtitle timing, composition and render duration first. Then build the longer 10–30 minute scene pipeline.
