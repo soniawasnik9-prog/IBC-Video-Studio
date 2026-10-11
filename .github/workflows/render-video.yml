@@ -1,0 +1,57 @@
+name: Render IBC Intro Video
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Blender, FFmpeg, and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender ffmpeg fonts-dejavu-core
+
+      - name: Install English voice generation tool
+        run: python -m pip install --upgrade pip edge-tts
+
+      - name: Render 3D animation with Blender
+        run: |
+          mkdir -p output
+          blender --background --python scripts/ibc_intro.py -- --output output/ibc_intro_silent.mp4
+
+      - name: Generate English voice-over
+        run: |
+          edge-tts \
+            --voice en-US-AriaNeural \
+            --file scripts/narration.txt \
+            --write-media output/ibc_voice.mp3
+
+      - name: Add captions and mix voice-over
+        run: |
+          ffmpeg -y \
+            -i output/ibc_intro_silent.mp4 \
+            -i output/ibc_voice.mp3 \
+            -vf "subtitles=scripts/captions.srt:fontsdir=/usr/share/fonts/truetype/dejavu:force_style='FontName=DejaVu Sans,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101828,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=90'" \
+            -map 0:v:0 -map 1:a:0 \
+            -c:v libx264 -preset veryfast -crf 22 -pix_fmt yuv420p \
+            -r 24 -c:a aac -b:a 160k -shortest \
+            -movflags +faststart output/ibc_intro_final.mp4
+
+      - name: Upload final video and preview assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibc-intro-video
+          path: |
+            output/ibc_intro_final.mp4
+            output/ibc_intro_silent.mp4
+            output/ibc_voice.mp3
+          if-no-files-found: error
+          retention-days: 7
